@@ -24,18 +24,27 @@ function isManager(role:string){return role==='owner'||role==='manager';}
 function Label({title,children}:{title:string;children:React.ReactNode}) {return <label className="field"><span>{title}</span>{children}</label>;}
 function Notice({text,onClose}:{text:string;onClose:()=>void}){return <div className="notice live-notice" role="status"><AlertCircle size={17}/>{text}<button onClick={onClose} aria-label="Dismiss notice">×</button></div>;}
 function Login({onSignIn}:{onSignIn:()=>void}){
- const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[busy,setBusy]=useState(false),[err,setErr]=useState('');
- async function submit(e:FormEvent){e.preventDefault();if(!supabase)return;setBusy(true);setErr('');try{
- const {error}=await supabase.auth.signInWithPassword({email,password});
- if(error)throw error;onSignIn();
+ const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[busy,setBusy]=useState(false),[err,setErr]=useState(''),[mode,setMode]=useState<'login'|'register'>('login'),[notice,setNotice]=useState('');
+ async function submit(e:FormEvent){e.preventDefault();if(!supabase)return;setBusy(true);setErr('');setNotice('');try{
+  if(mode==='register'){
+   const {data,error}=await supabase.auth.signUp({email,password,options:{emailRedirectTo:window.location.origin}});
+   if(error)throw error;
+   if(data.user && !data.session) setNotice('Account request sent. Check your email to confirm it, then sign in. A site administrator must separately assign your restaurant before any bookings are visible.');
+   else setNotice('Account created. An administrator must approve your restaurant membership before bookings are visible.');
+  } else {
+   const {error}=await supabase.auth.signInWithPassword({email,password});
+   if(error)throw error;onSignIn();
+  }
  }catch(e){setErr(describeError(e));}finally{setBusy(false);}}
  return <div className="auth-screen"><form className="auth-card" onSubmit={submit}>
   <div className="auth-logo">A</div><div className="eyebrow">ALESYAN RESERVE</div>
-  <h1>Staff sign in</h1><p className="muted">Secure reservation management. Access is restricted to accounts assigned to a restaurant.</p>
+  <h1>{mode==='register'?'Create test staff account':'Staff sign in'}</h1><p className="muted">Development-only access. Accounts cannot view restaurant data until separately approved for a location.</p>
   <Label title="Work email"><input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} required/></Label>
-  <Label title="Password"><input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required/></Label>
-  {err&&<p className="error">{err}</p>}<button className="button primary wide" disabled={busy}>{busy?'Signing in…':'Sign in'}</button>
-  <div className="auth-note"><ShieldCheck size={16}/> New staff accounts must be created and assigned by an authorised administrator. Public self-registration is disabled in this app.</div>
+  <Label title="Password"><input type="password" minLength={8} autoComplete={mode==='register'?'new-password':'current-password'} value={password} onChange={e=>setPassword(e.target.value)} required/></Label>
+  {err&&<p className="error">{err}</p>}{notice&&<div className="notice" role="status">{notice}</div>}
+  <button className="button primary wide" disabled={busy}>{busy?'Processing…':mode==='register'?'Create test account':'Sign in'}</button>
+  <button className="button ghost wide" type="button" disabled={busy} onClick={()=>{setMode(mode==='register'?'login':'register');setPassword('');setErr('');setNotice('');}}>{mode==='register'?'Already registered? Sign in':'Create a test staff account'}</button>
+  <div className="auth-note"><ShieldCheck size={16}/> No real customer data. Staff access requires site membership granted separately; creating an account does not grant administrator rights.</div>
  </form></div>;
 }
 export default function StaffApp(){
