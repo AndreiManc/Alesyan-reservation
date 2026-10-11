@@ -1,0 +1,102 @@
+import { test, expect, type Page } from '@playwright/test';
+
+const backend = 'https://fake-reservations.supabase.co';
+const userId='00000000-0000-4000-8000-000000000011';
+const siteId='00000000-0000-4000-8000-000000000022';
+const areaId='00000000-0000-4000-8000-000000000033';
+const tableId='00000000-0000-4000-8000-000000000044';
+const guestId='00000000-0000-4000-8000-000000000055';
+const bookingId='00000000-0000-4000-8000-000000000066';
+const expires=Math.floor(Date.now()/1000)+86400;
+const encoded=(x:unknown)=>Buffer.from(JSON.stringify(x)).toString('base64url');
+const jwt=encoded({alg:'HS256',typ:'JWT'})+'.'+encoded({sub:userId,exp:expires,aud:'authenticated',role:'authenticated'})+'.ci';
+const session={
+  access_token:jwt,refresh_token:'ci-fake-refresh',expires_at:expires,expires_in:86400,token_type:'bearer',
+  user:{id:userId,aud:'authenticated',role:'authenticated',email:'fictional-owner@example.test',
+    app_metadata:{provider:'email',providers:['email']},user_metadata:{},created_at:new Date().toISOString()}
+};
+
+function arrival():string {
+  const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Dublin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  return date+'T12:00:00Z';
+}
+function departure():string {
+  const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Dublin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  return date+'T14:00:00Z';
+}
+async function mockedOwner(page:Page) {
+ await page.addInitScript((init)=>{
+    localStorage.setItem('sb-fake-reservations-auth-token',JSON.stringify(init));
+ },session);
+ await page.route(backend+'/**',async route=>{
+   const url=new URL(route.request().url());
+   const path=url.pathname;
+   const answer=(data:unknown)=>route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*','content-range':'0-0/1'},body:JSON.stringify(data)});
+   if(route.request().method()==='OPTIONS') return route.fulfill({status:204,headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*','access-control-allow-methods':'GET,POST,OPTIONS'}});
+   if(path==='/auth/v1/user')return answer(session.user);
+   if(path.endsWith('/site_memberships'))return answer([{site_id:siteId,role:'owner'}]);
+   if(path.endsWith('/sites'))return answer([{id:siteId,name:'Fictional Malahide',timezone:'Europe/Dublin'}]);
+   if(path.endsWith('/site_settings'))return answer({site_id:siteId,lunch_from:'11:30:00',lunch_to:'14:30:00',dinner_from:'17:00:00',dinner_to:'20:30:00',small_duration_mins:90,large_duration_mins:120,turnover_buffer_mins:15,max_party_size:8,max_advance_days:45});
+   if(path.endsWith('/dining_tables'))return answer([{id:tableId,site_id:siteId,area_id:areaId,label:'T1',capacity:4,active:true,shape:'square',x:20,y:20}]);
+   if(path.endsWith('/dining_areas'))return answer([{id:areaId,site_id:siteId,name:'Main Dining'}]);
+   if(path.endsWith('/reservations'))return answer([{id:bookingId,site_id:siteId,guest_id:guestId,dining_table_id:tableId,party_size:2,starts_at:arrival(),ends_at:departure(),status:'confirmed',source:'Phone',notes:'CI invented guest',created_at:new Date().toISOString()}]);
+   if(path.endsWith('/guests'))return answer([{id:guestId,site_id:siteId,full_name:'Fictional Guest',phone:null,email:null}]);
+   if(path.includes('/rpc/staff_save_reservation'))return answer('00000000-0000-4000-8000-000000000088');
+   if(path.includes('/rpc/staff_change_reservation_status'))return answer(null);
+   if(path.includes('/rpc/staff_upsert_table'))return answer('00000000-0000-4000-8000-000000000099');
+   if(path.includes('/rpc/staff_update_settings'))return answer(null);
+   return route.fulfill({status:404,body:JSON.stringify({message:'Unmocked '+path})});
+ });
+}
+function nav(page:Page, desktopName:string, mobileName:string) {
+ return page.getByRole('button',{name:page.viewportSize()!.width<760?mobileName:desktopName,exact:true});
+}
+
+test('public route requires login and reveals no guests',async ({page})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Staff sign in'})).toBeVisible();
+ await expect(page.getByText('Fictional Guest')).toHaveCount(0);
+ await page.getByRole('button',{name:'Create a test staff account'}).click();
+ await expect(page.getByRole('heading',{name:'Create test staff account'})).toBeVisible();
+ await expect(page.getByLabel('Work email')).toBeVisible();
+ await expect(page.getByLabel('Password')).toBeVisible();
+ expect(errors).toEqual([]);
+});
+
+test('owner sees diary and booking editor with synthetic API',async ({page})=>{
+ await mockedOwner(page);
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Overview'})).toBeVisible();
+ await expect(page.getByText('Fictional Guest')).toBeVisible();
+ await nav(page,'Reservation diary','Reservation').click();
+ await expect(page.getByRole('heading',{name:'Reservation diary'})).toBeVisible();
+ await expect(page.getByText('Fictional Guest')).toBeVisible();
+ await page.getByRole('button',{name:'New reservation'}).click();
+ await expect(page.getByRole('dialog',{name:'Edit reservation'})).toBeVisible();
+ await expect(page.getByText(/Availability and table conflicts are checked again atomically/)).toBeVisible();
+ expect(errors).toEqual([]);
+});
+
+test('owner can access table management and settings',async ({page})=>{
+ await mockedOwner(page);
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Overview'})).toBeVisible();
+ await nav(page,'Floor & tables','Floor').click();
+ await expect(page.getByRole('heading',{name:'Restaurant tables'})).toBeVisible();
+ await expect(page.getByText('T1')).toBeVisible();
+ await nav(page,'Settings','Settings').click();
+ await expect(page.getByRole('heading',{name:'Service settings'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Save changes'})).toBeEnabled();
+ expect(errors).toEqual([]);
+});
+
+test('actual deployed site shows a login, not private reservation data',async ({page})=>{
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('https://alesyan-reservations.onrender.com',{waitUntil:'domcontentloaded',timeout:30000});
+ await expect(page.getByRole('heading',{name:'Staff sign in'})).toBeVisible();
+ await expect(page.getByText('Fictional Guest')).toHaveCount(0);
+ expect(errors).toEqual([]);
+});

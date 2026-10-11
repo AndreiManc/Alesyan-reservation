@@ -1,0 +1,30 @@
+name: Browser end-to-end tests
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'index.html'
+      - 'package.json'
+      - 'playwright.config.ts'
+      - 'tests/e2e/**'
+      - '.github/workflows/e2e.yml'
+  pull_request:
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-debug-artifacts
+          path: test-results/
+          retention-days: 3
