@@ -1,0 +1,40 @@
+name: Supabase schema safety checks
+on:
+  push:
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/sql-verify.yml'
+  pull_request:
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/sql-verify.yml'
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: test_only
+          POSTGRES_DB: reservations_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      PGPASSWORD: test_only
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGDATABASE: reservations_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bootstrap Supabase auth stubs (test DB only)
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/bootstrap.sql
+      - name: Apply reservation schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011190000_reservations_initial.sql
+      - name: Verify exclusion constraints, staff RPC and tenant RLS
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/schema_smoke.sql
