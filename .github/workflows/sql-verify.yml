@@ -34,7 +34,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Bootstrap Supabase auth stubs (test DB only)
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/bootstrap.sql
-      - name: Apply reservation schema
+      - name: Apply initial reservation schema
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011190000_reservations_initial.sql
-      - name: Verify exclusion constraints, staff RPC and tenant RLS
+      - name: Apply Supabase security hardening
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261011191500_reservations_security_grants_hardening.sql
+      - name: Verify exclusion constraints, staff RPC, RLS and privileges
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/schema_smoke.sql
+      - name: Load fictional Malahide fixture
+        run: psql -v ON_ERROR_STOP=1 -f supabase/fixtures/fictional_malahide.sql
+      - name: Verify demonstration dataset
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/fictional_fixture_smoke.sql

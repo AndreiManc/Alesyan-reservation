@@ -90,3 +90,20 @@ begin
 end $$;
 rollback;
 select 'All reservation smoke tests passed' as result;
+
+-- Verify direct grants were revoked for anonymous/public calls.
+do $$
+begin
+ if has_function_privilege('anon','public.staff_save_reservation(uuid,text,date,time,integer,text,text,uuid,uuid,uuid)','EXECUTE') then
+   raise exception 'Anonymous role can execute staff_save_reservation';
+ end if;
+ if has_function_privilege('anon','public.staff_upsert_table(uuid,text,integer,text,boolean,uuid)','EXECUTE') then
+   raise exception 'Anonymous role can execute staff_upsert_table';
+ end if;
+ if has_function_privilege('anon','public.staff_change_reservation_status(uuid,text)','EXECUTE') then
+   raise exception 'Anonymous role can execute staff_change_reservation_status';
+ end if;
+ if has_function_privilege('anon','public.staff_update_settings(uuid,time,time,time,time,integer,integer,integer,integer,integer)','EXECUTE') then
+   raise exception 'Anonymous role can execute staff_update_settings';
+ end if;
+end $$;

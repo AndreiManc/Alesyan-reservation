@@ -2,6 +2,7 @@
 create role authenticated nologin;
 create role anon nologin;
 create schema auth;
+create schema if not exists extensions;
 create table auth.users (id uuid primary key, email text);
 create or replace function auth.uid()
 returns uuid language sql stable as $$
