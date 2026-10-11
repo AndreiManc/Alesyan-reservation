@@ -68,7 +68,7 @@ test('owner sees diary and booking editor with synthetic API',async ({page})=>{
  await mockedOwner(page);
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('/');
- await expect(page.getByRole('heading',{name:'Overview'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
  await expect(page.getByText('Fictional Guest')).toBeVisible();
  await nav(page,'Reservation diary','Reservation').click();
  await expect(page.getByRole('heading',{name:'Reservation diary'})).toBeVisible();
@@ -83,7 +83,7 @@ test('owner can access table management and settings',async ({page})=>{
  await mockedOwner(page);
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('/');
- await expect(page.getByRole('heading',{name:'Overview'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
  await nav(page,'Floor & tables','Floor').click();
  await expect(page.getByRole('heading',{name:'Restaurant tables'})).toBeVisible();
  await expect(page.getByText('T1')).toBeVisible();
