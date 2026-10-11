@@ -1,112 +1,65 @@
-# Supabase setup — Alesyan Reserve
+# Alesyan Reserve — deployed test environment (11 October 2026)
 
-**Do not apply these steps to \`alesyan-staging\`. That project already contains the HACCP application.** Reservations must have a newly created, isolated Supabase project, with costs/organisation confirmed by the owner beforehand.
+## Current deployment
 
-## 1. Prerequisites
+| Component | Destination | Status |
+|---|---|---|
+| Frontend | https://alesyan-reservations.onrender.com | Render static site, live |
+| GitHub | https://github.com/AndreiManc/Alesyan-reservation | Connected, auto-deploy main |
+| Supabase | alesyan-reservations (ref jaxvytkwtnltapyqpqct) | New, independent Frankfurt project |
+| Food Safe Hub / HACCP | alesyan-staging | Separate and untouched |
 
-- A dedicated Supabase Reservations project (its own URL and publishable key).
-- The app source code in the independent GitHub repository \`AndreiManc/Alesyan-reservation\`.
-- An administrator/test staff email that is controlled by the project owner.
-- **No real restaurant customer records** during the development phase.
+The new Supabase project has **nine reservation tables**, row-level security, authenticated staff RPC functions, a collision-preventing exclusion constraint and audit events. Its anonymous access to privileged RPCs was revoked and checked. Initial and security migrations have already been applied. **Do not re-run these migrations as setup steps or duplicate the fictional fixture.**
 
-## 2. Create the database
+### Fictional data installed
 
-In the **new** Supabase project's SQL Editor, execute the entire file:
+- Alesyan Demo — Malahide (not Gourmet Food Parlour and not a commercial partnership)
+- 8 dining tables across Main Dining and Terrace
+- 12 invented guest names and 12 fictional reservations
+- 12 reservation audit events
+- No passwords or actual restaurant customer data
 
-\`supabase/migrations/20261011190000_reservations_initial.sql\`
+The staging project and production HACCP data are not connected to this Reservations frontend. **No real customer reservation page, notifications, payments, or Google/OpenTable integrations are enabled.**
 
-It creates organisations, sites, memberships, service settings, areas, tables, guests, reservations, and append-only reservation events. Row Level Security is enabled for all tables.
+## Enable a test manager account
 
-It implements:
-- authenticated site-member-only reads;
-- manager/owner-only settings and table editing;
-- server-authorised staff reservation creation and editing;
-- one-table booking overlap protection with a GiST exclusion constraint;
-- immutable (to app users) event history and server-side idempotency keys.
+There are currently **no users and no owner memberships** in the Reservations database.
 
-No authenticated user can directly INSERT/UPDATE/DELETE protected tables. Public/anon booking writes are deliberately **not** enabled.
+1. Open the test frontend at https://alesyan-reservations.onrender.com.
+2. Choose **Create a test staff account**; register with an email address you control and a new password not reused from HACCP.
+3. If Supabase sends a confirmation email, open it. If the redirect fails, return manually to the test URL and attempt **Sign in**. Supabase Authentication URL configuration may need an administrator to add the exact frontend origin and redirect URL.
+4. By design, newly registered accounts will see **No restaurant assigned**. Signup does **not** grant access to reservations.
+5. Only after verifying the test user's email, a project administrator can explicitly assign that user as the demo site's owner using the following SQL **in the dedicated Reservations project only**.
 
-**Verification:** GitHub CI's Postgres test job checks migration syntax, overlapping reservations, access isolation and staff RPCs in a disposable database. These tests are necessary but do not replace production security review.
+```sql
+-- Replace the address after obtaining the test user's explicit permission.
+-- Inspect auth.users first, and require email confirmation before granting ownership.
+insert into public.site_memberships(site_id,user_id,role)
+select s.id,u.id,'owner'
+from public.sites s
+join auth.users u on lower(u.email)=lower('REPLACE_WITH_CONFIRMED_TEST_EMAIL')
+where s.slug='alesyan-demo-malahide'
+  and u.email_confirmed_at is not null
+on conflict(site_id,user_id) do nothing;
+```
 
-## 3. Provision a fictional demo venue and owner
+Do not add hardcoded test passwords to the code, SQL or messages. Real workplace/customer data must not be imported.
 
-1. In Supabase → Authentication → Users, create or invite a **test** staff user. Obtain the user's UUID.
-2. Replace \`REPLACE_WITH_TEST_AUTH_USER_UUID\` in the script below, then run it **only in the new Reservations project**.
-3. Sign in to the app using that test staff email and password.
+## Permission model
 
-~~~sql
-do $$
-declare
-  v_org uuid;
-  v_site uuid;
-  v_main uuid;
-  v_terrace uuid;
-  v_test_user uuid := 'REPLACE_WITH_TEST_AUTH_USER_UUID'::uuid;
-begin
-  if not exists(select 1 from auth.users where id = v_test_user) then
-    raise exception 'Auth user not found; create a test user first';
-  end if;
+- All anonymous write and read access to guest/staff tables is denied.
+- Staff access is protected by email/password authentication and Supabase RLS.
+- Only assigned site members can read the site's data.
+- Host: booking CRUD and booking status changes (through narrowly controlled RPC functions).
+- Owner/Manager: same, plus table management and service rules.
+- Data can only be changed through validated, authenticated RPCs; no broad direct table update permissions.
+- Server-side GiST exclusion constraint atomically blocks overlapping occupied reservations.
+- Public bookings are **not** connected: no anonymous booking API is available.
 
-  insert into public.organisations(name)
-  values ('Alesyan Reservations Demonstration')
-  returning id into v_org;
+## Safety and work before live use
 
-  insert into public.sites(organisation_id,name,slug,timezone)
-  values (v_org,'Alesyan Demo — Malahide','alesyan-demo-malahide','Europe/Dublin')
-  returning id into v_site;
+The application's user-facing demo and secured staff backend are an **internal test** only. Before real restaurant operations: secure, rate-limited public-booking endpoint; working cancellation and reminders; full operating-hours and booking-date validation; consent and data-retention policies; backups; capacity pacing; threat testing; hospitality usability testing; and owner approval.
 
-  insert into public.site_memberships(site_id,user_id,role)
-  values (v_site,v_test_user,'owner');
+CI: [Build and test](https://github.com/AndreiManc/Alesyan-reservation/actions) and [SQL smoke workflow](https://github.com/AndreiManc/Alesyan-reservation/actions/workflows/sql-verify.yml). Security advisors currently report authenticated-callable SECURITY DEFINER functions as warnings because these are exposed intentionally for signed-in staff; each one must be independently reviewed for site/role authorization prior to production.
 
-  insert into public.site_settings(site_id)
-  values (v_site);
-
-  insert into public.dining_areas(site_id,name)
-  values(v_site,'Main Dining') returning id into v_main;
-  insert into public.dining_areas(site_id,name)
-  values(v_site,'Terrace') returning id into v_terrace;
-
-  insert into public.dining_tables(site_id,area_id,label,capacity,x,y) values
-   (v_site,v_main,'T1',2,20,20),
-   (v_site,v_main,'T2',2,110,20),
-   (v_site,v_main,'T3',4,20,120),
-   (v_site,v_main,'T4',4,110,120),
-   (v_site,v_main,'T5',6,200,120),
-   (v_site,v_terrace,'T6',4,30,30);
-end $$;
-~~~
-
-Do not run the fixture twice. It intentionally does not create any real bookings, customers or integrations.
-
-## 4. Configure the app
-
-Copy \`.env.example\` to \`.env.local\` and supply values from the **new dedicated project**:
-
-~~~dotenv
-VITE_SUPABASE_URL=https://YOUR_NEW_PROJECT_REF.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_NEW_PROJECT_KEY
-~~~
-
-These two values are public browser configuration values. **Never** commit any secret/service-role key, database password or test staff credentials to GitHub.
-
-When the environment variables are present, the app displays the **Supabase staff interface**, enforcing staff authentication and RLS. With variables absent, it displays a browser-local **fictional data demo** instead. The two modes do not share data.
-
-~~~bash
-npm install
-npm run dev
-npm run build
-npm test
-~~~
-
-In Supabase → Authentication → URL Configuration, eventually add your verified preview/deployment URL as appropriate before password reset or email-link sign-in flows are enabled. For now, standard email/password sign-in is used. Disable open public signups unless the business explicitly chooses to support them.
-
-## 5. Limits before any real restaurant pilot
-
-- Current connected mode is **staff-only**; the public booking page remains a fictional browser demo until a rate-limited, abuse-resistant public booking API exists.
-- The reservation engine allocates a single table, not joined tables, pacing limits, capacity by service, deposits or shift-based restrictions.
-- No emails, SMS, Google Reserve, POS or OpenTable marketplace discovery have been built.
-- GDPR: privacy notice, data minimisation, lawful basis, retention/deletion, logging, permissions review and data-processing agreements are still required.
-- Manager onboarding, role/invite flows and true multivenue administration are not yet self-service.
-- No live restaurant deployment, actual guest imports or real-world operational approval is authorised.
-
-**Do not turn on public customer bookings or import Gourmet Food Parlour data without the restaurant owner's explicit authorisation and production hardening.**
+**GitHub repository was public on creation.** Before introducing private product plans or anything sensitive, make it private in GitHub Settings → General → Change repository visibility. Do not commit service-role keys or customer data.
