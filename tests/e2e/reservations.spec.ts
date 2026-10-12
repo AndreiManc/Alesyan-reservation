@@ -280,8 +280,8 @@ test('Front of House shows integrated guest list and floor, with seated status a
  await mockedOwner(page);
  await page.goto('/');
  await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
- await nav(page,'Front of House','Front of House').click();
- await expect(page.getByRole('heading',{name:'Front of House'})).toBeVisible();
+ await page.getByRole('button',{name:'Front of House',exact:true}).first().click();
+ await expect(page.getByRole('heading',{name:'Front of House',level:2})).toBeVisible();
  await expect(page.getByRole('heading',{name:'Guest list'})).toBeVisible();
  await expect(page.getByRole('heading',{name:'Floor plan'})).toBeVisible();
  await expect(page.getByRole('button',{name:/Table T1/}).first()).toBeVisible();
