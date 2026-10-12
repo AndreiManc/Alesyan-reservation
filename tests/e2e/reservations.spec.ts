@@ -182,3 +182,44 @@ test('owner can change service settings through authenticated RPC',async ({page}
  expect(writes[0].p_max_party).toBe(10);
  expect(writes[0].p_site_id).toBe(siteId);
 });
+
+
+test('public customer demo offers slots and creates a booking through secure edge function',async ({page})=>{
+ const edge=backend+'/functions/v1/public-demo-booking';
+ const calls:Array<Record<string,unknown>>=[];
+ await page.route(edge,async route=>{
+   const input=JSON.parse(route.request().postData()||'{}') as Record<string,unknown>;
+   calls.push(input);
+   const body=input.action==='slots'?{slots:['17:00','18:00','19:00']}:{reference:'DEMO123456'};
+   await route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(body)});
+ });
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('/book/alesyan-demo-malahide');
+ await expect(page.getByRole('heading',{name:'Alesyan Demo — Malahide'})).toBeVisible();
+ await expect(page.getByText(/DEMONSTRATION ONLY/)).toBeVisible();
+ await expect(page.getByText('18:00')).toBeVisible();
+ await page.getByRole('button',{name:'18:00'}).click();
+ await page.getByRole('button',{name:'Confirm fictional booking'}).click();
+ await expect(page.getByRole('heading',{name:'Test reservation confirmed'})).toBeVisible();
+ await expect(page.getByText(/DEMO123456/)).toBeVisible();
+ const saved=calls.find(c=>c.action==='book');
+ expect(saved?.slug).toBe('alesyan-demo-malahide');
+ expect(saved?.time).toBe('18:00');
+ expect(saved?.party).toBe(2);
+ expect(saved?.requestId).toMatch(/^[0-9a-f-]{36}$/i);
+ expect(saved).not.toHaveProperty('guestName');
+ expect(errors).toEqual([]);
+});
+
+test('customer test page shows API errors without falsely confirming booking',async ({page})=>{
+ await page.route(backend+'/functions/v1/public-demo-booking',async route=>{
+  const request=JSON.parse(route.request().postData()||'{}') as Record<string,unknown>;
+  await route.fulfill({status:request.action==='book'?400:200,contentType:'application/json',
+   body:JSON.stringify(request.action==='book'?{error:'This slot just became unavailable'}:{slots:['18:00']})});
+ });
+ await page.goto('/book/alesyan-demo-malahide');
+ await page.getByRole('button',{name:'18:00'}).click();
+ await page.getByRole('button',{name:'Confirm fictional booking'}).click();
+ await expect(page.getByRole('alert')).toContainText('This slot just became unavailable');
+ await expect(page.getByRole('heading',{name:'Test reservation confirmed'})).toHaveCount(0);
+});
