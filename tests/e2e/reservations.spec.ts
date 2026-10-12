@@ -271,3 +271,25 @@ test('authenticated employee can add fictional guest to waitlist',async ({page})
  expect(writes[0].p_guest).toBe('Synthetic Waiting Guest');
  expect(writes[0].p_phone).toBe('0870000000');
 });
+
+test('staff waitlist form submits and status changes through secured RPCs',async ({page})=>{
+ await mockedOwner(page);
+ const calls:Array<{path:string;payload:Record<string,unknown>}>=[];
+ await page.route('https://fake-reservations.supabase.co/rest/v1/**',async(route)=>{
+  const url=new URL(route.request().url());
+  if(url.pathname.endsWith('/waitlist_entries'))return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([])});
+  if(url.pathname.includes('/rpc/staff_waitlist_add')){calls.push({path:'add',payload:JSON.parse(route.request().postData()||'{}')});return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify('00000000-0000-4000-8000-000000000101')});}
+  await route.continue();
+ });
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
+ await nav(page,'Waitlist','Waitlist').click();
+ await expect(page.getByRole('heading',{name:'Waitlist'})).toBeVisible();
+ await page.getByLabel('Guest name').fill('Fictional Waitlist Guest');
+ await page.getByLabel('Phone (required)').fill('0870000000');
+ await page.getByRole('button',{name:'Add to waitlist'}).click();
+ await expect(page.getByText('Waitlist entry added.')).toBeVisible();
+ expect(calls).toHaveLength(1);
+ expect(calls[0].payload.p_guest).toBe('Fictional Waitlist Guest');
+ expect(calls[0].payload.p_phone).toBe('0870000000');
+});
