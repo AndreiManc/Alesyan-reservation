@@ -248,5 +248,6 @@ test('customer may decline optional card, but large parties cannot bypass missin
  await page.getByText('Provide a card (not available during testing)').click();
  await expect(page.getByRole('button',{name:'Confirm fictional booking'})).toBeDisabled();
  await page.getByText('No card — continue without a card').click();
+ await page.getByRole('button',{name:'18:00'}).click();
  await expect(page.getByRole('button',{name:'Confirm fictional booking'})).toBeEnabled();
 });
