@@ -12,7 +12,7 @@ type View='overview'|'diary'|'waitlist'|'floor'|'guests'|'settings'|'privacy';
 type Editor={id?:string;firstName:string;lastName:string;phone:string;email:string;date:string;time:string;party:number;source:string;notes:string;preferredTableId:string;durationOverride:string;cardDeclined:boolean;waiverReason:string};
 const navItems:Array<{id:View;label:string;icon:typeof CalendarDays}>=[
  {id:'overview',label:'Overview',icon:LayoutGrid},{id:'diary',label:'Reservation diary',icon:ClipboardList},{id:'waitlist',label:'Waitlist',icon:Users},
- {id:'floor',label:'Floor & tables',icon:LayoutGrid},{id:'guests',label:'Guests',icon:Users},{id:'waitlist',label:'Waitlist',icon:ClipboardList},{id:'settings',label:'Settings',icon:Settings2},{id:'privacy',label:'Privacy & payments',icon:ShieldCheck}
+ {id:'floor',label:'Floor & tables',icon:LayoutGrid},{id:'guests',label:'Guests',icon:Users},{id:'settings',label:'Settings',icon:Settings2},{id:'privacy',label:'Privacy & payments',icon:ShieldCheck}
 ];
 const sources=['Phone','Website','Walk-in','OpenTable (historic)','Other'];
 const stat=['confirmed','seated','completed','cancelled','no-show'];
