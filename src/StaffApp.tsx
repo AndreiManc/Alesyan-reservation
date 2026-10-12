@@ -9,14 +9,14 @@ import { todayDublin } from './domain';
 import './staff.css';
 
 type View='overview'|'diary'|'floor'|'guests'|'settings'|'privacy';
-type Editor={id?:string;firstName:string;lastName:string;phone:string;email:string;date:string;time:string;party:number;source:string;notes:string;preferredTableId:string};
+type Editor={id?:string;firstName:string;lastName:string;phone:string;email:string;date:string;time:string;party:number;source:string;notes:string;preferredTableId:string;durationOverride:string;cardDeclined:boolean;waiverReason:string};
 const navItems:Array<{id:View;label:string;icon:typeof CalendarDays}>=[
  {id:'overview',label:'Overview',icon:LayoutGrid},{id:'diary',label:'Reservation diary',icon:ClipboardList},
  {id:'floor',label:'Floor & tables',icon:LayoutGrid},{id:'guests',label:'Guests',icon:Users},{id:'settings',label:'Settings',icon:Settings2},{id:'privacy',label:'Privacy & payments',icon:ShieldCheck}
 ];
 const sources=['Phone','Website','Walk-in','OpenTable (historic)','Other'];
 const stat=['confirmed','seated','completed','cancelled','no-show'];
-const makeEditor=(date:string):Editor=>({firstName:'',lastName:'',phone:'',email:'',date,time:'18:00',party:2,source:'Phone',notes:'',preferredTableId:''});
+const makeEditor=(date:string):Editor=>({firstName:'',lastName:'',phone:'',email:'',date,time:'18:00',party:2,source:'Phone',notes:'',preferredTableId:'',durationOverride:'',cardDeclined:false,waiverReason:''});
 const noncancelled=(r:DbBooking)=>r.status!=='cancelled'&&r.status!=='no-show';
 const dayFromIso=(s:string)=>dublinDate(s);
 const clockFromIso=(s:string)=>dublinClock(s);
@@ -57,7 +57,7 @@ export default function StaffApp(){
  const [busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[feedback,setFeedback]=useState('');
  const [editor,setEditor]=useState<Editor|null>(null),[statusFilter,setStatusFilter]=useState('all'),[query,setQuery]=useState('');
  const [tableName,setTableName]=useState(''),[tableCapacity,setTableCapacity]=useState(2),[tableArea,setTableArea]=useState('Main Dining');
- const [privacy,setPrivacy]=useState({controller_name:'',privacy_contact_email:'',privacy_notice_url:'',guest_retention_days:365,booking_retention_days:730,no_show_fee_cents:0,cancellation_cutoff_hours:24,no_show_card_requirement_enabled:false}); const [draftSettings,setDraftSettings]=useState<DbSettings|null>(null); const [selectedFloorTable,setSelectedFloorTable]=useState(''); const [pairs,setPairs]=useState<Array<{id:string;table_a:string;table_b:string;enabled:boolean}>>([]); const [pairA,setPairA]=useState(''),[pairB,setPairB]=useState('');
+ const [durationRules,setDurationRules]=useState<Array<{party_size:number;duration_mins:number}>>([]); const [ruleParty,setRuleParty]=useState(2),[ruleMinutes,setRuleMinutes]=useState(75); const [privacy,setPrivacy]=useState({controller_name:'',privacy_contact_email:'',privacy_notice_url:'',guest_retention_days:365,booking_retention_days:730,no_show_fee_cents:0,cancellation_cutoff_hours:24,no_show_card_requirement_enabled:false}); const [draftSettings,setDraftSettings]=useState<DbSettings|null>(null); const [selectedFloorTable,setSelectedFloorTable]=useState(''); const [pairs,setPairs]=useState<Array<{id:string;table_a:string;table_b:string;enabled:boolean}>>([]); const [pairA,setPairA]=useState(''),[pairB,setPairB]=useState('');
  useEffect(()=>{let mounted=true;void api.auth.getSession().then(({data,error})=>{if(!mounted)return;if(error)setFeedback(error.message);setSession(data.session);setChecking(false);});
  const {data:sub}=api.auth.onAuthStateChange((_event,s)=>{if(mounted)setSession(s);});
  return()=>{mounted=false;sub.subscription.unsubscribe();};},[api]);
@@ -92,7 +92,7 @@ export default function StaffApp(){
  if(gr.error)throw gr.error;guestRows=(gr.data??[]) as DbGuest[];}
  setSettings(sr.data as DbSettings);setDraftSettings(sr.data as DbSettings);
  setTables((tr.data??[]) as DbTable[]);setAreas((ar.data??[]) as DbArea[]);
- setReservations(found.filter(r=>dayFromIso(r.starts_at)===day));setGuests(guestRows);const ps=await api.from('site_privacy_settings').select('*').eq('site_id',siteId).maybeSingle();if(ps.data)setPrivacy({...ps.data,privacy_notice_url:ps.data.privacy_notice_url??''}); const pr=await api.from('table_join_pairs').select('id,table_a,table_b,enabled').eq('site_id',siteId);if(!pr.error)setPairs(pr.data??[]);
+ setReservations(found.filter(r=>dayFromIso(r.starts_at)===day));setGuests(guestRows);const ps=await api.from('site_privacy_settings').select('*').eq('site_id',siteId).maybeSingle();if(ps.data)setPrivacy({...ps.data,privacy_notice_url:ps.data.privacy_notice_url??''});const dr=await api.from('booking_duration_rules').select('party_size,duration_mins').eq('site_id',siteId);if(!dr.error)setDurationRules(dr.data??[]); const pr=await api.from('table_join_pairs').select('id,table_a,table_b,enabled').eq('site_id',siteId);if(!pr.error)setPairs(pr.data??[]);
  }catch(e){setFeedback('Could not load restaurant data: '+describeError(e));}finally{setLoading(false);}
  },[api,siteId,day]);
  useEffect(()=>{void load();},[load]);
@@ -102,17 +102,17 @@ export default function StaffApp(){
  const list=useMemo(()=>reservations.filter(r=>(statusFilter==='all'||r.status===statusFilter)&&[guestName(r.guest_id),r.source,r.notes,tableNameFor(r.dining_table_id)].join(' ').toLowerCase().includes(query.toLowerCase())),[reservations,query,statusFilter,guestName,tableNameFor]);
  async function saveReservation(e:FormEvent){e.preventDefault();if(!editor||!siteId)return;setBusy(true);setFeedback('');
  try{
- const {error}=await api.rpc('staff_auto_allocate_booking',{
+ const {error}=await api.rpc('staff_save_booking_with_policy',{
   p_site:siteId,p_first:editor.firstName.trim(),p_last:editor.lastName.trim(),p_phone:editor.phone.trim(),p_email:editor.email.trim(),p_day:editor.date,p_time:editor.time+':00',
   p_party:editor.party,p_source:editor.source,p_notes:editor.notes,
   p_preferred:editor.preferredTableId||null,p_existing:editor.id??null,
-  p_request:editor.id?null:crypto.randomUUID()
+  p_request:editor.id?null:crypto.randomUUID(),p_duration_override:editor.durationOverride?Number(editor.durationOverride):null,p_card_declined:editor.cardDeclined,p_card_override_reason:editor.waiverReason.trim()||null
  });
  if(error)throw error;
  setEditor(null);setFeedback('Reservation saved securely.');await load();
  }catch(e){setFeedback(describeError(e));}finally{setBusy(false);}
  }
- function editReservation(r:DbBooking){const guest=guests.find(g=>g.id===r.guest_id);const words=(guest?.full_name??'').trim().split(/\s+/);setEditor({id:r.id,firstName:words.slice(0,-1).join(' '),lastName:words.at(-1)??'',phone:guest?.phone??'',email:guest?.email??'',date:dayFromIso(r.starts_at),time:clockFromIso(r.starts_at),party:r.party_size,source:r.source,notes:r.notes,preferredTableId:r.dining_table_id});}
+ function editReservation(r:DbBooking){const guest=guests.find(g=>g.id===r.guest_id);const words=(guest?.full_name??'').trim().split(/\s+/);setEditor({id:r.id,firstName:words.slice(0,-1).join(' '),lastName:words.at(-1)??'',phone:guest?.phone??'',email:guest?.email??'',date:dayFromIso(r.starts_at),time:clockFromIso(r.starts_at),party:r.party_size,source:r.source,notes:r.notes,preferredTableId:r.dining_table_id,durationOverride:'',cardDeclined:false,waiverReason:''});}
  async function setStatus(id:string,status:string){setBusy(true);setFeedback('');try{
  const {error}=await api.rpc('staff_change_reservation_status',{p_reservation_id:id,p_status:status});if(error)throw error;await load();
  setFeedback('Status updated and recorded in the audit history.');
@@ -130,6 +130,7 @@ export default function StaffApp(){
  async function savePair(e:FormEvent){e.preventDefault();setBusy(true);try{const {error}=await api.rpc('staff_set_join_pair',{p_site:siteId,p_table_a:pairA,p_table_b:pairB,p_enabled:true});if(error)throw error;await load();setFeedback('Movable table pair enabled.');}catch(e){setFeedback(describeError(e));}finally{setBusy(false);}}
  async function disablePair(a:string,b:string){setBusy(true);try{const {error}=await api.rpc('staff_set_join_pair',{p_site:siteId,p_table_a:a,p_table_b:b,p_enabled:false});if(error)throw error;await load();}catch(e){setFeedback(describeError(e));}finally{setBusy(false);}}
  async function savePrivacy(e:FormEvent){e.preventDefault();if(!isManager(role))return;setBusy(true);setFeedback('');try{const {error}=await api.rpc('staff_update_privacy_settings',{p_site:siteId,p_controller:privacy.controller_name,p_email:privacy.privacy_contact_email,p_notice:privacy.privacy_notice_url,p_guest_days:privacy.guest_retention_days,p_booking_days:privacy.booking_retention_days});if(error)throw error;setFeedback('Privacy settings saved. Retention and card charges are not automated yet.');await load();}catch(e){setFeedback(describeError(e));}finally{setBusy(false);}}
+ async function saveDuration(e:FormEvent){e.preventDefault();setBusy(true);try{const {error}=await api.rpc('staff_set_duration_rule',{p_site:siteId,p_party:ruleParty,p_minutes:ruleMinutes});if(error)throw error;await load();setFeedback('Duration rule saved.');}catch(e){setFeedback(describeError(e));}finally{setBusy(false);}}
  async function saveSettings(e:FormEvent){e.preventDefault();if(!draftSettings||!isManager(role))return;setBusy(true);try{
  const s=draftSettings;
  const {error}=await api.rpc('staff_update_settings',{
@@ -177,6 +178,7 @@ export default function StaffApp(){
  <Label title="Guest retention policy (days)"><input type="number" min={30} max={2555} value={privacy.guest_retention_days} disabled={!isManager(role)} onChange={e=>setPrivacy({...privacy,guest_retention_days:Number(e.target.value)})}/></Label>
  <Label title="Booking retention policy (days)"><input type="number" min={30} max={2555} value={privacy.booking_retention_days} disabled={!isManager(role)} onChange={e=>setPrivacy({...privacy,booking_retention_days:Number(e.target.value)})}/></Label>
  </div><button className="button primary" disabled={busy||!isManager(role)}>Save privacy settings</button></form></section>
+ <section className="panel" style={{padding:20}}><h3>Booking durations by party size</h3><p className="muted">For two guests, the current default is 75 minutes plus turnover buffer. Managers can configure other party sizes; employees can override duration per booking.</p><form className="add-table" onSubmit={saveDuration}><Label title="Party size"><input type="number" min={1} max={100} value={ruleParty} onChange={e=>setRuleParty(Number(e.target.value))}/></Label><Label title="Minutes"><input type="number" min={30} max={480} value={ruleMinutes} onChange={e=>setRuleMinutes(Number(e.target.value))}/></Label><button className="button primary" disabled={busy||!isManager(role)}>Save duration</button></form><p className="muted tiny">{durationRules.map(r=>r.party_size+' guests: '+r.duration_mins+' min').join(' · ')}</p></section>
  <section className="panel" style={{padding:20}}><h3>No-show card guarantees</h3><p><strong>Status: Not enabled.</strong> Card collection and charges must use a compliant payment provider such as Stripe. Alesyan will not hold full card numbers or CVVs.</p><p className="muted">The database has restricted token/reference fields for future card-on-file authorizations, but no checkout, setup intent, charge collection or guest consent capture is connected.</p><p className="muted">No-show fee currently configured: €{(privacy.no_show_fee_cents/100).toFixed(2)} · Cancellation cutoff: {privacy.cancellation_cutoff_hours} hours · Card requirement: Off</p></section></>}
     {view==='settings'&&<><div className="section-head"><div><h2>Service settings</h2><p className="muted">Only owners and managers can change these values</p></div></div>{draftSettings?<section className="panel"><form onSubmit={saveSettings}><div className="panel-head"><h3>Availability rules</h3><button className="button primary" disabled={busy||!isManager(role)}>Save changes</button></div><div className="form-grid staff-settings">
       {([['lunch_from','Lunch start'],['lunch_to','Lunch end'],['dinner_from','Dinner start'],['dinner_to','Dinner end']] as const).map(([key,title])=><Label key={key} title={title}><input type="time" disabled={!isManager(role)} value={draftSettings[key].slice(0,5)} onChange={e=>setDraftSettings({...draftSettings,[key]:e.target.value})}/></Label>)}
@@ -196,6 +198,8 @@ export default function StaffApp(){
       <Label title="Time"><input type="time" step="1800" required value={editor.time} onChange={e=>setEditor({...editor,time:e.target.value})}/></Label>
       <Label title="Source"><select value={editor.source} onChange={e=>setEditor({...editor,source:e.target.value})}>{sources.map(s=><option key={s}>{s}</option>)}</select></Label>
       <Label title="Table"><select value={editor.preferredTableId} onChange={e=>setEditor({...editor,preferredTableId:e.target.value})}><option value="">Automatic allocation</option>{tables.filter(t=>t.active).map(t=><option key={t.id} value={t.id}>{t.label} · {t.capacity} seats</option>)}</select></Label>
+      <Label title="Duration override (minutes)"><input type="number" min={30} max={480} placeholder={String(durationRules.find(r=>r.party_size===editor.party)?.duration_mins??(editor.party>4?(settings?.large_duration_mins??120):(settings?.small_duration_mins??90)))} value={editor.durationOverride} onChange={e=>setEditor({...editor,durationOverride:e.target.value})}/></Label>
+      {editor.party<10?<label className="field"><span><input type="checkbox" checked={editor.cardDeclined} onChange={e=>setEditor({...editor,cardDeclined:e.target.checked})}/> Guest declined optional card guarantee</span></label>:<div className="full staff-disclaimer"><strong>Card required for 10+ guests.</strong> Secure card collection is not active yet. An Owner/Manager can enter a documented waiver reason to accept this booking. <Label title="Manager waiver reason (minimum 8 characters)"><textarea required minLength={8} value={editor.waiverReason} onChange={e=>setEditor({...editor,waiverReason:e.target.value})} disabled={!isManager(role)}/></Label></div>}
       <div className="full"><Label title="Internal notes"><textarea value={editor.notes} maxLength={500} rows={3} onChange={e=>setEditor({...editor,notes:e.target.value})}/></Label></div>
       <div className="full muted tiny">Availability and table conflicts are checked again atomically in the database when saved.</div>
       <div className="full dialog-actions"><button type="button" className="button ghost" onClick={()=>setEditor(null)}><ArrowLeft size={15}/>Cancel</button><button className="button primary" type="submit" disabled={busy}>{busy?'Saving…':'Save reservation'}</button></div>
