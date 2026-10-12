@@ -100,3 +100,85 @@ test('actual deployed site shows a login, not private reservation data',async ({
  await expect(page.getByText('Fictional Guest')).toHaveCount(0);
  expect(errors).toEqual([]);
 });
+
+
+test('authenticated owner can submit a new reservation through the staff RPC',async ({page})=>{
+ await mockedOwner(page);
+ const writes:Array<{url:string;body:Record<string,unknown>}>=[];
+ page.on('request',req=>{
+  if(req.url().includes('/rpc/staff_save_reservation') && req.method()==='POST') {
+   writes.push({url:req.url(),body:JSON.parse(req.postData()||'{}')});
+  }
+ });
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
+ await nav(page,'Reservation diary','Reservation').click();
+ await page.getByRole('button',{name:'New reservation'}).click();
+ const dialog=page.getByRole('dialog',{name:'Edit reservation'});
+ await dialog.getByLabel('Guest name').fill('Playwright Fictional Customer');
+ await dialog.getByLabel('Party size').fill('3');
+ await dialog.getByLabel('Internal notes').fill('Browser CI synthetic data only');
+ await dialog.getByRole('button',{name:'Save reservation'}).click();
+ await expect(dialog).toHaveCount(0);
+ await expect(page.getByText('Reservation saved securely.')).toBeVisible();
+ expect(writes).toHaveLength(1);
+ expect(writes[0].body.p_guest_name).toBe('Playwright Fictional Customer');
+ expect(writes[0].body.p_party).toBe(3);
+ expect(writes[0].body.p_source).toBe('Phone');
+ expect(writes[0].body.p_site_id).toBe(siteId);
+ expect(typeof writes[0].body.p_request_id).toBe('string');
+});
+
+test('authenticated owner changes reservation status through authorised RPC',async ({page})=>{
+ await mockedOwner(page);
+ const writes:Record<string,unknown>[]=[];
+ page.on('request',req=>{
+  if(req.url().includes('/rpc/staff_change_reservation_status') && req.method()==='POST')
+   writes.push(JSON.parse(req.postData()||'{}'));
+ });
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
+ await nav(page,'Reservation diary','Reservation').click();
+ await page.getByRole('combobox',{name:'Status for Fictional Guest'}).selectOption('seated');
+ await expect(page.getByText('Status updated and recorded in the audit history.')).toBeVisible();
+ expect(writes).toEqual([{p_reservation_id:bookingId,p_status:'seated'}]);
+});
+
+test('owner can create table via role-gated staff RPC',async ({page})=>{
+ await mockedOwner(page);
+ const writes:Record<string,unknown>[]=[];
+ page.on('request',req=>{
+  if(req.url().includes('/rpc/staff_upsert_table') && req.method()==='POST')
+   writes.push(JSON.parse(req.postData()||'{}'));
+ });
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
+ await nav(page,'Floor & tables','Floor').click();
+ await page.getByLabel('Table label').fill('T9');
+ await page.getByLabel('Seats').fill('6');
+ await page.getByLabel('Area').fill('Main Dining');
+ await page.getByRole('button',{name:'Add table'}).click();
+ await expect(page.getByText('Table created.')).toBeVisible();
+ expect(writes).toHaveLength(1);
+ expect(writes[0].p_label).toBe('T9');
+ expect(writes[0].p_capacity).toBe(6);
+ expect(writes[0].p_site_id).toBe(siteId);
+});
+
+test('owner can change service settings through authenticated RPC',async ({page})=>{
+ await mockedOwner(page);
+ const writes:Record<string,unknown>[]=[];
+ page.on('request',req=>{
+  if(req.url().includes('/rpc/staff_update_settings') && req.method()==='POST')
+   writes.push(JSON.parse(req.postData()||'{}'));
+ });
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
+ await nav(page,'Settings','Settings').click();
+ await page.getByLabel('Maximum party size').fill('10');
+ await page.getByRole('button',{name:'Save changes'}).click();
+ await expect(page.getByText('Service settings updated.')).toBeVisible();
+ expect(writes).toHaveLength(1);
+ expect(writes[0].p_max_party).toBe(10);
+ expect(writes[0].p_site_id).toBe(siteId);
+});
