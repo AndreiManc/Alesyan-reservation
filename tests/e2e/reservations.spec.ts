@@ -262,7 +262,7 @@ test('authenticated employee can add fictional guest to waitlist',async ({page})
  await page.goto('/');
  await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
  await nav(page,'Waitlist','Waitlist').click();
- await expect(page.getByRole('heading',{name:'Waitlist'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Waitlist',exact:true}).first()).toBeVisible();
  await page.getByLabel('Guest full name').fill('Synthetic Waiting Guest');
  await page.getByLabel('Phone',{exact:true}).fill('0870000000');
  await page.getByRole('button',{name:'Add to waitlist'}).click();
