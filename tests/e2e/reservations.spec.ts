@@ -274,3 +274,16 @@ test('authenticated employee can add fictional guest to waitlist',async ({page})
  expect(writes[0].p_phone).toBe('0870000000');
 });
 
+
+
+test('Front of House shows integrated guest list and floor, with seated status action',async ({page})=>{
+ await mockedOwner(page);
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
+ await nav(page,'Front of House','Front of House').click();
+ await expect(page.getByRole('heading',{name:'Front of House'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Guest list'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Floor plan'})).toBeVisible();
+ await expect(page.getByRole('button',{name:/Table T1/}).first()).toBeVisible();
+ await expect(page.getByRole('button',{name:'Seat'})).toBeVisible();
+});
