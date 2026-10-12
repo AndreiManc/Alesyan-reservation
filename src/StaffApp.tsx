@@ -140,7 +140,7 @@ export default function StaffApp(){
   <aside className="sidebar"><div className="brand"><div className="brand-mark">A</div><div><strong>alesyan</strong><small>RESERVE</small></div></div>
   <div className="demo-label"><ShieldCheck size={14} style={{verticalAlign:'middle',marginRight:6}}/>SUPABASE · STAFF ACCESS</div>
   <div className="sidebar-section">RESTAURANT</div><nav className="sidebar-nav">{navItems.map(p=><button key={p.id} className={'nav-item '+(view===p.id?'selected':'')} onClick={()=>setView(p.id)}><p.icon size={18}/>{p.label}</button>)}</nav>
-  <div className="sidebar-bottom"><div className="tiny muted">{session.user.email}<p>Role: {role}</p></div><button className="nav-item outline" onClick={()=>api.auth.signOut()}><LogOut size={17}/>Sign out</button></div>
+  <div className="sidebar-bottom"><a className="nav-item outline" href="/book/alesyan-demo-malahide" target="_blank" rel="noreferrer">Customer demo booking ↗</a><div className="tiny muted">{session.user.email}<p>Role: {role}</p></div><button className="nav-item outline" onClick={()=>api.auth.signOut()}><LogOut size={17}/>Sign out</button></div>
   </aside><main className="main">
    <header className="topbar"><div className="topbar-title"><span className="eyebrow">ALESYAN / {selected?.name.toUpperCase()}</span><h1>{navItems.find(p=>p.id===view)?.label}</h1></div>
    <div className="staff-head-actions"><select aria-label="Select restaurant" value={siteId} onChange={e=>setSiteId(e.target.value)}>{sites.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><button className="button outline" onClick={()=>void load()}><RefreshCw size={16}/>Refresh</button></div></header>

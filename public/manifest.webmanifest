@@ -1,0 +1,9 @@
+{
+  "name": "Alesyan Reservations",
+  "short_name": "Alesyan Reserve",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7f7",
+  "theme_color": "#103b40",
+  "description": "Staff reservation and table management"
+}
