@@ -36,6 +36,9 @@ async function mockedOwner(page:Page) {
    if(path==='/auth/v1/user')return answer(session.user);
    if(path.endsWith('/site_memberships'))return answer([{site_id:siteId,role:'owner'}]);
    if(path.endsWith('/sites'))return answer([{id:siteId,name:'Fictional Malahide',timezone:'Europe/Dublin'}]);
+   if(path.endsWith('/waitlist_entries'))return answer([]);
+   if(path.includes('/rpc/staff_waitlist_add'))return answer('00000000-0000-4000-8000-0000000000AA');
+   if(path.includes('/rpc/staff_waitlist_status'))return answer(null);
    if(path.endsWith('/site_settings'))return answer({site_id:siteId,lunch_from:'11:30:00',lunch_to:'14:30:00',dinner_from:'17:00:00',dinner_to:'20:30:00',small_duration_mins:90,large_duration_mins:120,turnover_buffer_mins:15,max_party_size:8,max_advance_days:45});
    if(path.endsWith('/dining_tables'))return answer([{id:tableId,site_id:siteId,area_id:areaId,label:'T1',capacity:4,active:true,shape:'square',x:20,y:20}]);
    if(path.endsWith('/dining_areas'))return answer([{id:areaId,site_id:siteId,name:'Main Dining'}]);
@@ -250,4 +253,21 @@ test('customer may decline optional card, but large parties cannot bypass missin
  await page.getByText('No card — continue without a card').click();
  await page.getByRole('button',{name:'18:00'}).click();
  await expect(page.getByRole('button',{name:'Confirm fictional booking'})).toBeEnabled();
+});
+
+test('authenticated employee can add fictional guest to waitlist',async ({page})=>{
+ await mockedOwner(page);
+ const writes:Record<string,unknown>[]=[];
+ page.on('request',r=>{if(r.url().includes('/rpc/staff_waitlist_add')&&r.method()==='POST')writes.push(JSON.parse(r.postData()||'{}'));});
+ await page.goto('/');
+ await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
+ await nav(page,'Waitlist','Waitlist').click();
+ await expect(page.getByRole('heading',{name:'Waitlist'})).toBeVisible();
+ await page.getByLabel('Guest full name').fill('Synthetic Waiting Guest');
+ await page.getByLabel('Phone',{exact:true}).fill('0870000000');
+ await page.getByRole('button',{name:'Add to waitlist'}).click();
+ await expect(page.getByText('Guest added to the private waitlist.')).toBeVisible();
+ expect(writes).toHaveLength(1);
+ expect(writes[0].p_guest).toBe('Synthetic Waiting Guest');
+ expect(writes[0].p_phone).toBe('0870000000');
 });
