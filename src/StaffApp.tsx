@@ -9,14 +9,14 @@ import { todayDublin } from './domain';
 import './staff.css';
 
 type View='overview'|'diary'|'floor'|'guests'|'settings';
-type Editor={id?:string;name:string;date:string;time:string;party:number;source:string;notes:string;preferredTableId:string};
+type Editor={id?:string;firstName:string;lastName:string;phone:string;email:string;date:string;time:string;party:number;source:string;notes:string;preferredTableId:string};
 const navItems:Array<{id:View;label:string;icon:typeof CalendarDays}>=[
  {id:'overview',label:'Overview',icon:LayoutGrid},{id:'diary',label:'Reservation diary',icon:ClipboardList},
  {id:'floor',label:'Floor & tables',icon:LayoutGrid},{id:'guests',label:'Guests',icon:Users},{id:'settings',label:'Settings',icon:Settings2}
 ];
 const sources=['Phone','Website','Walk-in','OpenTable (historic)','Other'];
 const stat=['confirmed','seated','completed','cancelled','no-show'];
-const makeEditor=(date:string):Editor=>({name:'',date,time:'18:00',party:2,source:'Phone',notes:'',preferredTableId:''});
+const makeEditor=(date:string):Editor=>({firstName:'',lastName:'',phone:'',email:'',date,time:'18:00',party:2,source:'Phone',notes:'',preferredTableId:''});
 const noncancelled=(r:DbBooking)=>r.status!=='cancelled'&&r.status!=='no-show';
 const dayFromIso=(s:string)=>dublinDate(s);
 const clockFromIso=(s:string)=>dublinClock(s);
@@ -102,8 +102,8 @@ export default function StaffApp(){
  const list=useMemo(()=>reservations.filter(r=>(statusFilter==='all'||r.status===statusFilter)&&[guestName(r.guest_id),r.source,r.notes,tableNameFor(r.dining_table_id)].join(' ').toLowerCase().includes(query.toLowerCase())),[reservations,query,statusFilter,guestName,tableNameFor]);
  async function saveReservation(e:FormEvent){e.preventDefault();if(!editor||!siteId)return;setBusy(true);setFeedback('');
  try{
- const {error}=await api.rpc('staff_save_reservation',{
-  p_site_id:siteId,p_guest_name:editor.name.trim(),p_day:editor.date,p_time:editor.time+':00',
+ const {error}=await api.rpc('staff_save_reservation_v2',{
+  p_site_id:siteId,p_first_name:editor.firstName.trim(),p_last_name:editor.lastName.trim(),p_phone:editor.phone.trim(),p_email:editor.email.trim(),p_day:editor.date,p_time:editor.time+':00',
   p_party:editor.party,p_source:editor.source,p_notes:editor.notes,
   p_preferred_table_id:editor.preferredTableId||null,p_reservation_id:editor.id??null,
   p_request_id:editor.id?null:crypto.randomUUID()
@@ -111,7 +111,7 @@ export default function StaffApp(){
  if(error)throw error;setEditor(null);setFeedback('Reservation saved securely.');await load();
  }catch(e){setFeedback(describeError(e));}finally{setBusy(false);}
  }
- function editReservation(r:DbBooking){setEditor({id:r.id,name:guestName(r.guest_id),date:dayFromIso(r.starts_at),time:clockFromIso(r.starts_at),party:r.party_size,source:r.source,notes:r.notes,preferredTableId:r.dining_table_id});}
+ function editReservation(r:DbBooking){const guest=guests.find(g=>g.id===r.guest_id);const words=(guest?.full_name??'').trim().split(/\s+/);setEditor({id:r.id,firstName:words.slice(0,-1).join(' '),lastName:words.at(-1)??'',phone:guest?.phone??'',email:guest?.email??'',date:dayFromIso(r.starts_at),time:clockFromIso(r.starts_at),party:r.party_size,source:r.source,notes:r.notes,preferredTableId:r.dining_table_id});}
  async function setStatus(id:string,status:string){setBusy(true);setFeedback('');try{
  const {error}=await api.rpc('staff_change_reservation_status',{p_reservation_id:id,p_status:status});if(error)throw error;await load();
  setFeedback('Status updated and recorded in the audit history.');
@@ -173,7 +173,10 @@ export default function StaffApp(){
   {editor&&<div className="overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setEditor(null);}}><section className="dialog" role="dialog" aria-modal="true" aria-label="Edit reservation">
     <div className="dialog-head"><div><span className="eyebrow">SECURE STAFF RESERVATION</span><h2>{editor.id?'Edit booking':'New booking'}</h2></div><button className="icon-button" aria-label="Close" onClick={()=>setEditor(null)}><X size={20}/></button></div>
     <form className="form-grid" onSubmit={saveReservation}>
-      <Label title="Guest name"><input value={editor.name} minLength={2} maxLength={100} required onChange={e=>setEditor({...editor,name:e.target.value})}/></Label>
+      <Label title="First name"><input value={editor.firstName} maxLength={80} onChange={e=>setEditor({...editor,firstName:e.target.value})}/></Label>
+      <Label title="Last name (required)"><input value={editor.lastName} maxLength={80} required onChange={e=>setEditor({...editor,lastName:e.target.value})}/></Label>
+      <Label title="Phone number (required)"><input value={editor.phone} type="tel" minLength={7} maxLength={30} required onChange={e=>setEditor({...editor,phone:e.target.value})}/></Label>
+      <Label title="Email address"><input value={editor.email} type="email" maxLength={254} onChange={e=>setEditor({...editor,email:e.target.value})}/></Label>
       <Label title="Party size"><input type="number" min="1" max={settings?.max_party_size??8} required value={editor.party} onChange={e=>setEditor({...editor,party:Number(e.target.value)})}/></Label>
       <Label title="Date"><input type="date" required value={editor.date} min={todayDublin()} onChange={e=>setEditor({...editor,date:e.target.value})}/></Label>
       <Label title="Time"><input type="time" step="1800" required value={editor.time} onChange={e=>setEditor({...editor,time:e.target.value})}/></Label>
