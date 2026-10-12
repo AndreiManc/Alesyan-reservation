@@ -15,7 +15,11 @@ async function request(payload:Record<string,unknown>):Promise<Reply>{
  return out;
 }
 export default function PublicBooking(){
- const [date,setDate]=useState(todayDublin()),[party,setParty]=useState(2),[slots,setSlots]=useState<string[]>([]),
+ const widgetParams=new URLSearchParams(window.location.search);
+ const initialDate=widgetParams.get('date');
+ const initialParty=Number(widgetParams.get('party'));
+ const initialTime=widgetParams.get('time');
+ const [date,setDate]=useState(initialDate&&/^\d{4}-\d{2}-\d{2}$/.test(initialDate)&&initialDate>=todayDublin()?initialDate:todayDublin()),[party,setParty]=useState(Number.isInteger(initialParty)&&initialParty>=1&&initialParty<=12?initialParty:2),[slots,setSlots]=useState<string[]>([]),
  [time,setTime]=useState(''),[loading,setLoading]=useState(false),[error,setError]=useState(''),
  [cardChoice,setCardChoice]=useState<'decline'|'provide'>('decline'),[reference,setReference]=useState(''),[firstName,setFirstName]=useState(''),[lastName,setLastName]=useState(''),[phone,setPhone]=useState(''),[email,setEmail]=useState('');
  useEffect(()=>{let cancelled=false;setSlots([]);setTime('');setError('');
