@@ -43,6 +43,8 @@ async function mockedOwner(page:Page) {
    if(path.endsWith('/dining_tables'))return answer([{id:tableId,site_id:siteId,area_id:areaId,label:'T1',capacity:4,active:true,shape:'square',x:20,y:20}]);
    if(path.endsWith('/dining_areas'))return answer([{id:areaId,site_id:siteId,name:'Main Dining'}]);
    if(path.endsWith('/reservations'))return answer([{id:bookingId,site_id:siteId,guest_id:guestId,dining_table_id:tableId,party_size:2,starts_at:arrival(),ends_at:departure(),status:'confirmed',source:'Phone',notes:'CI invented guest',created_at:new Date().toISOString()}]);
+   if(path.endsWith('/waitlist_entries'))return answer([]);
+   if(path.includes('/rpc/staff_waitlist_add'))return answer('00000000-0000-4000-8000-000000000101');
    if(path.endsWith('/guests'))return answer([{id:guestId,site_id:siteId,full_name:'Fictional Guest',phone:null,email:null}]);
    if(path.includes('/rpc/staff_save_booking_with_policy'))return answer('00000000-0000-4000-8000-000000000088');
    if(path.includes('/rpc/staff_change_reservation_status'))return answer(null);
@@ -263,8 +265,8 @@ test('authenticated employee can add fictional guest to waitlist',async ({page})
  await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
  await nav(page,'Waitlist','Waitlist').click();
  await expect(page.getByRole('heading',{name:'Waitlist',exact:true}).first()).toBeVisible();
- await page.getByLabel('Guest full name').fill('Synthetic Waiting Guest');
- await page.getByLabel('Phone',{exact:true}).fill('0870000000');
+ await page.getByLabel('Guest name').fill('Synthetic Waiting Guest');
+ await page.getByLabel('Phone (required)').fill('0870000000');
  await page.getByRole('button',{name:'Add to waitlist'}).click();
  await expect(page.getByText('Guest added to the private waitlist.')).toBeVisible();
  expect(writes).toHaveLength(1);
@@ -272,24 +274,3 @@ test('authenticated employee can add fictional guest to waitlist',async ({page})
  expect(writes[0].p_phone).toBe('0870000000');
 });
 
-test('staff waitlist form submits and status changes through secured RPCs',async ({page})=>{
- await mockedOwner(page);
- const calls:Array<{path:string;payload:Record<string,unknown>}>=[];
- await page.route('https://fake-reservations.supabase.co/rest/v1/**',async(route)=>{
-  const url=new URL(route.request().url());
-  if(url.pathname.endsWith('/waitlist_entries'))return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify([])});
-  if(url.pathname.includes('/rpc/staff_waitlist_add')){calls.push({path:'add',payload:JSON.parse(route.request().postData()||'{}')});return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify('00000000-0000-4000-8000-000000000101')});}
-  await route.continue();
- });
- await page.goto('/');
- await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
- await nav(page,'Waitlist','Waitlist').click();
- await expect(page.getByRole('heading',{name:'Waitlist'})).toBeVisible();
- await page.getByLabel('Guest name').fill('Fictional Waitlist Guest');
- await page.getByLabel('Phone (required)').fill('0870000000');
- await page.getByRole('button',{name:'Add to waitlist'}).click();
- await expect(page.getByText('Waitlist entry added.')).toBeVisible();
- expect(calls).toHaveLength(1);
- expect(calls[0].payload.p_guest).toBe('Fictional Waitlist Guest');
- expect(calls[0].payload.p_phone).toBe('0870000000');
-});
