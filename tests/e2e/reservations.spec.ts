@@ -41,7 +41,7 @@ async function mockedOwner(page:Page) {
    if(path.endsWith('/dining_areas'))return answer([{id:areaId,site_id:siteId,name:'Main Dining'}]);
    if(path.endsWith('/reservations'))return answer([{id:bookingId,site_id:siteId,guest_id:guestId,dining_table_id:tableId,party_size:2,starts_at:arrival(),ends_at:departure(),status:'confirmed',source:'Phone',notes:'CI invented guest',created_at:new Date().toISOString()}]);
    if(path.endsWith('/guests'))return answer([{id:guestId,site_id:siteId,full_name:'Fictional Guest',phone:null,email:null}]);
-   if(path.includes('/rpc/staff_auto_allocate_booking'))return answer('00000000-0000-4000-8000-000000000088');
+   if(path.includes('/rpc/staff_save_booking_with_policy'))return answer('00000000-0000-4000-8000-000000000088');
    if(path.includes('/rpc/staff_change_reservation_status'))return answer(null);
    if(path.includes('/rpc/staff_upsert_table'))return answer('00000000-0000-4000-8000-000000000099');
    if(path.includes('/rpc/staff_update_settings'))return answer(null);
@@ -106,7 +106,7 @@ test('authenticated owner can submit a new reservation through the staff RPC',as
  await mockedOwner(page);
  const writes:Array<{url:string;body:Record<string,unknown>}>=[];
  page.on('request',req=>{
-  if(req.url().includes('/rpc/staff_auto_allocate_booking') && req.method()==='POST') {
+  if(req.url().includes('/rpc/staff_save_booking_with_policy') && req.method()==='POST') {
    writes.push({url:req.url(),body:JSON.parse(req.postData()||'{}')});
   }
  });
