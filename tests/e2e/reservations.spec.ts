@@ -287,3 +287,14 @@ test('Front of House shows integrated guest list and floor, with seated status a
  await expect(page.getByRole('button',{name:/Table T1/}).first()).toBeVisible();
  await expect(page.getByRole('button',{name:'Seat'})).toBeVisible();
 });
+
+
+test('website booking widget opens Alesyan customer booking with selected date and party',async ({page})=>{
+ await page.goto('/widget/alesyan-demo-malahide');
+ await expect(page.getByRole('heading',{name:'Reserve a table'})).toBeVisible();
+ await page.getByLabel('Widget party size').selectOption('4');
+ await page.getByRole('button',{name:/Find a table/}).click();
+ await expect(page).toHaveURL(/\/book\/alesyan-demo-malahide\?.*party=4/);
+ await expect(page.getByRole('heading',{name:'Alesyan Demo — Malahide'})).toBeVisible();
+ await expect(page.getByLabel('Party size')).toHaveValue('4');
+});
