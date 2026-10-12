@@ -17,7 +17,7 @@ async function request(payload:Record<string,unknown>):Promise<Reply>{
 export default function PublicBooking(){
  const [date,setDate]=useState(todayDublin()),[party,setParty]=useState(2),[slots,setSlots]=useState<string[]>([]),
  [time,setTime]=useState(''),[loading,setLoading]=useState(false),[error,setError]=useState(''),
- [reference,setReference]=useState('');
+ [reference,setReference]=useState(''),[firstName,setFirstName]=useState(''),[lastName,setLastName]=useState(''),[phone,setPhone]=useState(''),[email,setEmail]=useState('');
  useEffect(()=>{let cancelled=false;setSlots([]);setTime('');setError('');
  if(!date||date<todayDublin())return;
  setLoading(true);
@@ -26,7 +26,7 @@ export default function PublicBooking(){
  .finally(()=>{if(!cancelled)setLoading(false);});
  return()=>{cancelled=true;};
  },[date,party]);
- async function submit(e:FormEvent){e.preventDefault();if(!time)return;setLoading(true);setError('');
+ async function submit(e:FormEvent){e.preventDefault();if(!time)return;if(!lastName.trim()||phone.replace(/[^0-9]/g,'').length<7){setError('A test last name and valid sample phone number are required.');return;}setLoading(true);setError('');
  try{const id=crypto.randomUUID();const result=await request({action:'book',date,party,time,requestId:id});
  if(!result.reference)throw new Error('Could not confirm demo booking');
  setReference(result.reference);
@@ -48,6 +48,14 @@ export default function PublicBooking(){
     <h3>Available times</h3>
     {loading&&!slots.length?<p className="public-muted">Checking availability…</p>:
     <div className="public-slots">{slots.map(s=><button type="button" className={s===time?'selected':''} key={s} onClick={()=>setTime(s)}>{s}</button>)}{!slots.length&&!error&&<p className="public-muted">No tables available for this date. Try another day.</p>}</div>}
+    <h3>Booking details</h3>
+    <p className="public-muted">Use invented test information only. Details entered here are validated for the booking form demonstration but are not transmitted or saved.</p>
+    <div className="public-input-row">
+      <label>First name<input value={firstName} maxLength={80} onChange={e=>setFirstName(e.target.value)} placeholder="Sample"/></label>
+      <label>Last name (required)<input required value={lastName} maxLength={80} onChange={e=>setLastName(e.target.value)} placeholder="Guest"/></label>
+      <label>Phone number (required)<input required type="tel" value={phone} maxLength={30} onChange={e=>setPhone(e.target.value)} placeholder="Use a test number"/></label>
+      <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} maxLength={254} placeholder="Optional test email"/></label>
+    </div>
     {error&&<p className="public-error" role="alert">{error}</p>}
     <button className="public-primary" disabled={!time||loading} type="submit">{loading?'Processing…':'Confirm fictional booking'}</button>
     <p className="public-footer"><CalendarDays size={14}/> Reservations and availability are synchronised with the staff database.</p>
