@@ -39,6 +39,10 @@ async function mockedOwner(page:Page) {
    if(path.endsWith('/waitlist_entries'))return answer([]);
    if(path.includes('/rpc/staff_waitlist_add'))return answer('00000000-0000-4000-8000-0000000000AA');
    if(path.includes('/rpc/staff_waitlist_status'))return answer(null);
+   if(path.endsWith('/site_restaurant_profiles'))return answer({site_id:siteId,display_name:'Fictional Malahide',description:'',contact_phone:'',website_url:'',cuisine:'',address_line:'',published:false});
+   if(path.endsWith('/site_booking_closures'))return answer([]);
+   if(path.includes('/rpc/staff_update_restaurant_profile'))return answer(null);
+   if(path.includes('/rpc/staff_set_booking_closure'))return answer(null);
    if(path.endsWith('/site_settings'))return answer({site_id:siteId,lunch_from:'11:30:00',lunch_to:'14:30:00',dinner_from:'17:00:00',dinner_to:'20:30:00',small_duration_mins:90,large_duration_mins:120,turnover_buffer_mins:15,max_party_size:8,max_advance_days:45});
    if(path.endsWith('/dining_tables'))return answer([{id:tableId,site_id:siteId,area_id:areaId,label:'T1',capacity:4,active:true,shape:'square',x:20,y:20}]);
    if(path.endsWith('/dining_areas'))return answer([{id:areaId,site_id:siteId,name:'Main Dining'}]);
