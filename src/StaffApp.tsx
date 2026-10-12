@@ -102,13 +102,14 @@ export default function StaffApp(){
  const list=useMemo(()=>reservations.filter(r=>(statusFilter==='all'||r.status===statusFilter)&&[guestName(r.guest_id),r.source,r.notes,tableNameFor(r.dining_table_id)].join(' ').toLowerCase().includes(query.toLowerCase())),[reservations,query,statusFilter,guestName,tableNameFor]);
  async function saveReservation(e:FormEvent){e.preventDefault();if(!editor||!siteId)return;setBusy(true);setFeedback('');
  try{
- const {error}=await api.rpc('staff_save_reservation_v2',{
-  p_site_id:siteId,p_first_name:editor.firstName.trim(),p_last_name:editor.lastName.trim(),p_phone:editor.phone.trim(),p_email:editor.email.trim(),p_day:editor.date,p_time:editor.time+':00',
+ const {error}=await api.rpc('staff_auto_allocate_booking',{
+  p_site:siteId,p_first:editor.firstName.trim(),p_last:editor.lastName.trim(),p_phone:editor.phone.trim(),p_email:editor.email.trim(),p_day:editor.date,p_time:editor.time+':00',
   p_party:editor.party,p_source:editor.source,p_notes:editor.notes,
-  p_preferred_table_id:editor.preferredTableId||null,p_reservation_id:editor.id??null,
-  p_request_id:editor.id?null:crypto.randomUUID()
+  p_preferred:editor.preferredTableId||null,p_existing:editor.id??null,
+  p_request:editor.id?null:crypto.randomUUID()
  });
- if(error && editor.id==null && !editor.preferredTableId && /No (suitable|available) table|fully booked|capacity/i.test(error.message)){const joined=await api.rpc('staff_create_joined_reservation',{p_site:siteId,p_first:editor.firstName,p_last:editor.lastName,p_phone:editor.phone,p_email:editor.email,p_day:editor.date,p_time:editor.time+':00',p_party:editor.party,p_source:editor.source,p_notes:editor.notes,p_request:crypto.randomUUID()});if(joined.error)throw joined.error;}else if(error)throw error;setEditor(null);setFeedback('Reservation saved securely.');await load();
+ if(error)throw error;
+ setEditor(null);setFeedback('Reservation saved securely.');await load();
  }catch(e){setFeedback(describeError(e));}finally{setBusy(false);}
  }
  function editReservation(r:DbBooking){const guest=guests.find(g=>g.id===r.guest_id);const words=(guest?.full_name??'').trim().split(/\s+/);setEditor({id:r.id,firstName:words.slice(0,-1).join(' '),lastName:words.at(-1)??'',phone:guest?.phone??'',email:guest?.email??'',date:dayFromIso(r.starts_at),time:clockFromIso(r.starts_at),party:r.party_size,source:r.source,notes:r.notes,preferredTableId:r.dining_table_id});}
