@@ -231,3 +231,22 @@ test('customer test page shows API errors without falsely confirming booking',as
  await expect(page.getByRole('alert')).toContainText('This slot just became unavailable');
  await expect(page.getByRole('heading',{name:'Test reservation confirmed'})).toHaveCount(0);
 });
+
+test('customer may decline optional card, but large parties cannot bypass missing card provider',async ({page})=>{
+ const backend='https://fake-reservations.supabase.co';
+ await page.route(backend+'/functions/v1/public-demo-booking',async route=>{
+   const payload=JSON.parse(route.request().postData()||'{}');
+   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(payload.action==='slots'?{slots:['18:00']}:{reference:'DEMO123456'})});
+ });
+ await page.goto('/book/alesyan-demo-malahide');
+ await expect(page.getByText('No card — continue without a card')).toBeVisible();
+ await page.getByLabel('Party size').selectOption('10');
+ await expect(page.getByText(/Online confirmation is unavailable/)).toBeVisible();
+ await expect(page.getByRole('button',{name:'Confirm fictional booking'})).toBeDisabled();
+ await page.getByLabel('Party size').selectOption('2');
+ await expect(page.getByRole('button',{name:'18:00'})).toBeVisible();
+ await page.getByText('Provide a card (not available during testing)').click();
+ await expect(page.getByRole('button',{name:'Confirm fictional booking'})).toBeDisabled();
+ await page.getByText('No card — continue without a card').click();
+ await expect(page.getByRole('button',{name:'Confirm fictional booking'})).toBeEnabled();
+});
