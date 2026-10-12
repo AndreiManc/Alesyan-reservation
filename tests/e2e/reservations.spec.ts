@@ -41,7 +41,7 @@ async function mockedOwner(page:Page) {
    if(path.endsWith('/dining_areas'))return answer([{id:areaId,site_id:siteId,name:'Main Dining'}]);
    if(path.endsWith('/reservations'))return answer([{id:bookingId,site_id:siteId,guest_id:guestId,dining_table_id:tableId,party_size:2,starts_at:arrival(),ends_at:departure(),status:'confirmed',source:'Phone',notes:'CI invented guest',created_at:new Date().toISOString()}]);
    if(path.endsWith('/guests'))return answer([{id:guestId,site_id:siteId,full_name:'Fictional Guest',phone:null,email:null}]);
-   if(path.includes('/rpc/staff_save_reservation'))return answer('00000000-0000-4000-8000-000000000088');
+   if(path.includes('/rpc/staff_save_reservation_v2'))return answer('00000000-0000-4000-8000-000000000088');
    if(path.includes('/rpc/staff_change_reservation_status'))return answer(null);
    if(path.includes('/rpc/staff_upsert_table'))return answer('00000000-0000-4000-8000-000000000099');
    if(path.includes('/rpc/staff_update_settings'))return answer(null);
@@ -106,7 +106,7 @@ test('authenticated owner can submit a new reservation through the staff RPC',as
  await mockedOwner(page);
  const writes:Array<{url:string;body:Record<string,unknown>}>=[];
  page.on('request',req=>{
-  if(req.url().includes('/rpc/staff_save_reservation') && req.method()==='POST') {
+  if(req.url().includes('/rpc/staff_save_reservation_v2') && req.method()==='POST') {
    writes.push({url:req.url(),body:JSON.parse(req.postData()||'{}')});
   }
  });
@@ -115,14 +115,18 @@ test('authenticated owner can submit a new reservation through the staff RPC',as
  await nav(page,'Reservation diary','Reservation').click();
  await page.getByRole('button',{name:'New reservation'}).click();
  const dialog=page.getByRole('dialog',{name:'Edit reservation'});
- await dialog.getByLabel('Guest name').fill('Playwright Fictional Customer');
+ await dialog.getByLabel('First name').fill('Playwright Fictional');
+ await dialog.getByLabel('Last name (required)').fill('Customer');
+ await dialog.getByLabel('Phone number (required)').fill('0870000000');
  await dialog.getByLabel('Party size').fill('3');
  await dialog.getByLabel('Internal notes').fill('Browser CI synthetic data only');
  await dialog.getByRole('button',{name:'Save reservation'}).click();
  await expect(dialog).toHaveCount(0);
  await expect(page.getByText('Reservation saved securely.')).toBeVisible();
  expect(writes).toHaveLength(1);
- expect(writes[0].body.p_guest_name).toBe('Playwright Fictional Customer');
+ expect(writes[0].body.p_first_name).toBe('Playwright Fictional');
+ expect(writes[0].body.p_last_name).toBe('Customer');
+ expect(writes[0].body.p_phone).toBe('0870000000');
  expect(writes[0].body.p_party).toBe(3);
  expect(writes[0].body.p_source).toBe('Phone');
  expect(writes[0].body.p_site_id).toBe(siteId);
@@ -199,6 +203,8 @@ test('public customer demo offers slots and creates a booking through secure edg
  await expect(page.getByText(/DEMONSTRATION ONLY/)).toBeVisible();
  await expect(page.getByText('18:00')).toBeVisible();
  await page.getByRole('button',{name:'18:00'}).click();
+ await page.getByLabel('Last name (required)').fill('Test');
+ await page.getByLabel('Phone number (required)').fill('0870000000');
  await page.getByRole('button',{name:'Confirm fictional booking'}).click();
  await expect(page.getByRole('heading',{name:'Test reservation confirmed'})).toBeVisible();
  await expect(page.getByText(/DEMO123456/)).toBeVisible();
@@ -219,6 +225,8 @@ test('customer test page shows API errors without falsely confirming booking',as
  });
  await page.goto('/book/alesyan-demo-malahide');
  await page.getByRole('button',{name:'18:00'}).click();
+ await page.getByLabel('Last name (required)').fill('Test');
+ await page.getByLabel('Phone number (required)').fill('0870000000');
  await page.getByRole('button',{name:'Confirm fictional booking'}).click();
  await expect(page.getByRole('alert')).toContainText('This slot just became unavailable');
  await expect(page.getByRole('heading',{name:'Test reservation confirmed'})).toHaveCount(0);
