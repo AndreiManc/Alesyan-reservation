@@ -57,7 +57,7 @@ export default function PublicBooking(){
     <div className="public-slots">{slots.map(s=><button type="button" className={s===time?'selected':''} key={s} onClick={()=>setTime(s)}>{s}</button>)}{!slots.length&&!error&&<p className="public-muted">No tables available for this date. Try another day.</p>}</div>}
     {!isAmendment&&<><h3>Card guarantee</h3>
     {party>=10?<div className="public-warning" role="status"><strong>Card required for 10+ guests.</strong> Secure card collection is not yet enabled. Online confirmation is unavailable; restaurant managers may record a documented exception through the staff portal.</div>:<fieldset className="public-card-choice"><legend>Would you like to provide a card guarantee?</legend><label><input type="radio" name="cardChoice" checked={cardChoice==='decline'} onChange={()=>setCardChoice('decline')}/> No card — continue without a card</label><label><input type="radio" name="cardChoice" checked={cardChoice==='provide'} onChange={()=>setCardChoice('provide')}/> Provide a card (not available during testing)</label></fieldset>}
-    <h3>Booking details</h3>
+    {!isAmendment&&<><h3>Booking details</h3>
     <p className="public-muted">Use invented test information only. Details entered here are validated for the booking form demonstration but are not transmitted or saved.</p>
     <div className="public-input-row">
       <label>First name<input value={firstName} maxLength={80} onChange={e=>setFirstName(e.target.value)} placeholder="Sample"/></label>
@@ -65,6 +65,7 @@ export default function PublicBooking(){
       <label>Phone number (required)<input required type="tel" value={phone} maxLength={30} onChange={e=>setPhone(e.target.value)} placeholder="Use a test number"/></label>
       <label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} maxLength={254} placeholder="Optional test email"/></label>
     </div>
+    </>}
     </>}
     {isAmendment&&<p className="public-muted">Changes are confirmed only after a new capacity check. The original booking stays unchanged if the amendment cannot fit.</p>}
     {error&&<p className="public-error" role="alert">{error}</p>}
