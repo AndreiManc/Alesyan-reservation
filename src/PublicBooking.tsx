@@ -47,7 +47,7 @@ export default function PublicBooking(){
    <div className="public-warning"><strong>DEMONSTRATION ONLY.</strong> This is not Gourmet Food Parlour or a real restaurant reservation. All bookings are fictional test records. Do not enter any personal information.</div>
    {reference?
    <div className="public-card success"><CheckCircle2 size={39}/><h2>{isAmendment?'Test reservation amended':'Test reservation confirmed'}</h2><p>Your fictional booking reference is <strong>{reference}</strong>.</p><p>It now appears in the secure staff reservation diary. No email or SMS was sent and no real restaurant will expect you.</p><p><strong>Save your private amendment link</strong> to change the date, time or party size later. Anyone with this link can amend the fictional reservation.</p><a className="public-amend-link" href={amendUrl}>{amendUrl}</a>
-   <button className="public-primary" onClick={()=>{setReference('');setTime('');}}>Create another test reservation</button></div>
+   <button className="public-primary" onClick={()=>{setReference('');setTime('');}}>{isAmendment?'Make another change':'Create another test reservation'}</button></div>
    :<form className="public-card" onSubmit={submit}>
     <h2>{isAmendment?'Amend your test booking':'Find a table'}</h2><p className="public-muted">No account or personal details needed for this test.</p>
     <div className="public-input-row"><label>Date<input required type="date" min={todayDublin()} max={dateAfter(todayDublin(),45)} value={date} onChange={e=>setDate(e.target.value)}/></label>
@@ -55,6 +55,7 @@ export default function PublicBooking(){
     <h3>Available times</h3>
     {loading&&!slots.length?<p className="public-muted">Checking availability…</p>:
     <div className="public-slots">{slots.map(s=><button type="button" className={s===time?'selected':''} key={s} onClick={()=>setTime(s)}>{s}</button>)}{!slots.length&&!error&&<p className="public-muted">No tables available for this date. Try another day.</p>}</div>}
+    {isAmendment&&<label className="public-time-edit">Requested time <input aria-label="Amendment requested time" type="time" step="1800" required value={time} onChange={e=>setTime(e.target.value)}/><small>Time changes are checked against actual table capacity when you confirm.</small></label>}
     {!isAmendment&&<><h3>Card guarantee</h3>
     {party>=10?<div className="public-warning" role="status"><strong>Card required for 10+ guests.</strong> Secure card collection is not yet enabled. Online confirmation is unavailable; restaurant managers may record a documented exception through the staff portal.</div>:<fieldset className="public-card-choice"><legend>Would you like to provide a card guarantee?</legend><label><input type="radio" name="cardChoice" checked={cardChoice==='decline'} onChange={()=>setCardChoice('decline')}/> No card — continue without a card</label><label><input type="radio" name="cardChoice" checked={cardChoice==='provide'} onChange={()=>setCardChoice('provide')}/> Provide a card (not available during testing)</label></fieldset>}
     {!isAmendment&&<><h3>Booking details</h3>
