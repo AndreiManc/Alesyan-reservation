@@ -17,15 +17,16 @@ Deno.serve(async req=>{
  try {data=await req.json();} catch{return json({error:'Invalid JSON'},400);}
  if(!data || typeof data!=='object' || Array.isArray(data))return json({error:'Invalid input'},400);
  const action=data.action;
- if(action!=='slots'&&action!=='book')return json({error:'Invalid operation'},400);
+ if(action!=='slots'&&action!=='book'&&action!=='amend')return json({error:'Invalid operation'},400);
  if(data.slug!=='alesyan-demo-malahide')return json({error:'Demo venue only'},404);
  if(typeof data.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(data.date))return json({error:'Invalid date'},400);
- if(!Number.isInteger(data.party)||Number(data.party)<1||Number(data.party)>8)return json({error:'Invalid party size'},400);
- if(action==='book'&&(typeof data.time!=='string'||!/^\d{2}:(00|30)$/.test(data.time)
+ if(!Number.isInteger(data.party)||Number(data.party)<1||Number(data.party)>9)return json({error:'Invalid party size'},400);
+ if((action==='book'||action==='amend')&&(typeof data.time!=='string'||!/^\d{2}:(00|30)$/.test(data.time)
    || typeof data.requestId!=='string'||!/^[0-9a-f-]{36}$/i.test(data.requestId)))return json({error:'Invalid booking request'},400);
  const forwarded=req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()||'anonymous';
  const ipHash=await digest(forwarded+':alesyan-reservations-demo-2026');
- const name=action==='book'?'public_demo_book':'public_demo_slots';
+ if(action==='amend'&&(typeof data.token!=='string'||!/^[0-9a-f-]{36}$/i.test(data.token)))return json({error:'Invalid amendment capability'},400);
+ const name=action==='book'?'public_demo_book':action==='amend'?'public_demo_amend':'public_demo_slots';
  const payload=action==='slots'
   ?{p_slug:data.slug,p_day:data.date,p_party:data.party}
   :{p_slug:data.slug,p_day:data.date,p_time:data.time,p_party:data.party,p_request:data.requestId,p_fingerprint:ipHash};
