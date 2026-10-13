@@ -302,3 +302,28 @@ test('website booking widget opens Alesyan customer booking with selected date a
  await expect(page.getByRole('heading',{name:'Alesyan Demo — Malahide'})).toBeVisible();
  await expect(page.getByLabel('Party size')).toHaveValue('4');
 });
+
+
+test('customer demo booking provides a private amendment link and can amend party/time',async ({page})=>{
+ const calls:Array<Record<string,unknown>>=[];
+ await page.route(backend+'/functions/v1/public-demo-booking',async route=>{
+  const input=JSON.parse(route.request().postData()||'{}') as Record<string,unknown>;calls.push(input);
+  const body=input.action==='slots'?{slots:['17:00','18:00','19:00']}:{reference:'FAKEAMEND1'};
+  await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(body)});
+ });
+ await page.goto('/book/alesyan-demo-malahide');
+ await page.getByRole('button',{name:'18:00'}).click();
+ await page.getByLabel('Last name (required)').fill('Example');
+ await page.getByLabel('Phone number (required)').fill('0870000000');
+ await page.getByRole('button',{name:'Confirm fictional booking'}).click();
+ const url=await page.locator('.public-amend-link').getAttribute('href');
+ expect(url).toContain('?amend=');
+ await page.goto(url!);
+ await page.getByLabel('Party size').selectOption('3');
+ await page.getByLabel('Amendment requested time').fill('19:00');
+ await page.getByRole('button',{name:'Confirm changes'}).click();
+ await expect(page.getByRole('heading',{name:'Test reservation amended'})).toBeVisible();
+ const amend=calls.find(c=>c.action==='amend');
+ expect(amend?.party).toBe(3);expect(amend?.time).toBe('19:00');
+ expect(amend?.token).toBe(calls.find(c=>c.action==='book')?.requestId);
+});
